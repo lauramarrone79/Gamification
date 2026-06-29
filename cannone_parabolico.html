@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cannone Parabolico — ITC J. Torriani</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f2; display: flex; justify-content: center; padding: 2rem 1rem; min-height: 100vh; }
+  #app { width: 100%; max-width: 720px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #1a1a1a; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 16px; }
+  canvas { width: 100%; display: block; border-radius: 10px; border: 1px solid #ddd; background: #e8f4ff; }
+  #equation-bar {
+    margin-top: 10px; text-align: center; font-size: 16px; font-weight: 600;
+    font-family: monospace; color: #1a1a1a; padding: 9px 12px;
+    background: #eee; border-radius: 8px;
+  }
+  #controls { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .ctrl { display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; }
+  .ctrl label { font-size: 12px; color: #888; }
+  .ctrl input[type=range] { width: 100%; accent-color: #1a5fcb; }
+  .ctrl .val { font-size: 14px; font-weight: 600; color: #1a1a1a; font-family: monospace; }
+  #msg { margin-top: 10px; text-align: center; font-size: 15px; min-height: 24px; font-weight: 600; }
+  #fire-btn {
+    display: block; margin: 12px auto 0; padding: 9px 32px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; border: none;
+    background: #1a5fcb; color: #fff;
+    transition: background 0.15s;
+  }
+  #fire-btn:hover { background: #154faa; }
+  #fire-btn:active { transform: scale(0.98); }
+  #score-bar {
+    display: flex; justify-content: center; gap: 28px;
+    margin-top: 10px; font-size: 13px; color: #666;
+    background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px;
+  }
+  #score-bar span { font-weight: 700; color: #1a1a1a; }
+  .hint { margin-top: 14px; font-size: 12px; color: #888; background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px 14px; line-height: 1.6; }
+  .hint b { color: #1a5fcb; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🎯 Cannone Parabolico</h1>
+  <p class="subtitle">Regola i coefficienti per colpire il bersaglio — ITC J. Torriani, Cremona</p>
+
+  <canvas id="c" height="300"></canvas>
+  <div id="equation-bar">y = ax² + bx + c</div>
+  <div id="msg"></div>
+
+  <div id="controls">
+    <div class="ctrl">
+      <label>coefficiente <b>a</b> (concavità)</label>
+      <input type="range" id="sa" min="-2" max="-0.05" step="0.05" value="-0.3">
+      <div class="val" id="va">a = -0.30</div>
+    </div>
+    <div class="ctrl">
+      <label>coefficiente <b>b</b> (angolo iniziale)</label>
+      <input type="range" id="sb" min="0.5" max="8" step="0.1" value="3">
+      <div class="val" id="vb">b = 3.0</div>
+    </div>
+    <div class="ctrl">
+      <label>coefficiente <b>c</b> (altezza iniziale)</label>
+      <input type="range" id="sc" min="0" max="3" step="0.1" value="1">
+      <div class="val" id="vc">c = 1.0</div>
+    </div>
+  </div>
+
+  <button id="fire-btn">Lancia 🔥</button>
+
+  <div id="score-bar">
+    Tiri: <span id="shots">0</span>
+    &nbsp;|&nbsp;
+    Colpi a segno: <span id="hits">0</span>
+    &nbsp;|&nbsp;
+    Precisione: <span id="acc">—</span>
+  </div>
+
+  <div class="hint">
+    <b>a</b> controlla la larghezza della parabola (più negativo = curva più stretta) &nbsp;·&nbsp;
+    <b>b</b> controlla la pendenza iniziale (angolo del cannone) &nbsp;·&nbsp;
+    <b>c</b> è l'altezza di partenza &nbsp;·&nbsp;
+    Il punto <b>V</b> indica il vertice (massimo della traiettoria)
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 700, H = 300;
+canvas.width = W; canvas.height = H;
+
+const SCALE = 22;
+const ORIGIN_X = 40;
+const GROUND_Y = 255;
+
+let a = -0.3, b = 3, c = 1;
+let targetWX, targetWY;
+const targetR = 18;
+let shots = 0, hits = 0;
+let animId = null;
+let fired = false;
+let hitEffect = 0, hitEffectX = 0, hitEffectY = 0;
+
+function newTarget() {
+  targetWX = 9 + Math.random() * 10;
+  targetWY = 1 + Math.random() * 3;
+}
+newTarget();
+
+function f(x) { return a * x * x + b * x + c; }
+
+function toCanvas(wx, wy) {
+  return { cx: ORIGIN_X + wx * SCALE, cy: GROUND_Y - wy * SCALE };
+}
+
+function drawCannon() {
+  const angle = Math.atan(b);
+  ctx.save();
+  ctx.translate(ORIGIN_X, GROUND_Y);
+  ctx.fillStyle = '#555';
+  ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(-angle);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, -4, 28, 9);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(0, -5, 10, 11);
+  ctx.restore();
+}
+
+function draw(ballWX, ballWY, explode) {
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.fillStyle = '#e8f4ff';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#6aaa45';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.fillStyle = '#4d8230';
+  ctx.fillRect(0, GROUND_Y, W, 5);
+
+  ctx.strokeStyle = 'rgba(0,80,180,0.07)';
+  ctx.lineWidth = 1;
+  for (let gx = ORIGIN_X; gx < W; gx += SCALE) {
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, GROUND_Y); ctx.stroke();
+  }
+  for (let gy = GROUND_Y; gy > 0; gy -= SCALE) {
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(0,80,180,0.18)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ORIGIN_X, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(30,100,220,0.35)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  let started = false;
+  for (let wx = 0; wx <= 30; wx += 0.1) {
+    let wy = f(wx);
+    let p = toCanvas(wx, wy);
+    if (p.cy > GROUND_Y) { if (started) break; continue; }
+    if (p.cx > W) break;
+    if (!started) { ctx.moveTo(p.cx, p.cy); started = true; }
+    else ctx.lineTo(p.cx, p.cy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  let vx = -b / (2 * a);
+  let vy = f(vx);
+  if (vx > 0) {
+    let vp = toCanvas(vx, vy);
+    if (vp.cy < GROUND_Y && vp.cx > ORIGIN_X && vp.cx < W) {
+      ctx.strokeStyle = 'rgba(30,100,220,0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(vp.cx, vp.cy); ctx.lineTo(vp.cx, GROUND_Y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(30,100,220,0.8)';
+      ctx.beginPath(); ctx.arc(vp.cx, vp.cy, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '11px monospace';
+      ctx.fillStyle = 'rgba(30,100,220,0.9)';
+      ctx.fillText('V(' + vx.toFixed(1) + ', ' + vy.toFixed(1) + ')', vp.cx + 6, vp.cy - 5);
+    }
+  }
+
+  drawCannon();
+
+  let tp = toCanvas(targetWX, targetWY);
+  if (!explode) {
+    ctx.save();
+    ctx.translate(tp.cx, tp.cy);
+    ctx.strokeStyle = '#cc2222'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, targetR, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#cc2222'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, targetR * 0.55, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ee4444';
+    ctx.beginPath(); ctx.arc(0, 0, targetR * 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else {
+    let r = hitEffect * 40;
+    ctx.save();
+    ctx.globalAlpha = 1 - hitEffect * 0.85;
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath(); ctx.arc(hitEffectX, hitEffectY, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff6600';
+    ctx.beginPath(); ctx.arc(hitEffectX, hitEffectY, r * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  if (ballWX !== null) {
+    let bp = toCanvas(ballWX, ballWY);
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(bp.cx, bp.cy, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#555';
+    ctx.beginPath(); ctx.arc(bp.cx - 2, bp.cy - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+let animWX = 0;
+function animate() {
+  animWX += 0.12;
+  let wy = f(animWX);
+  let p = toCanvas(animWX, wy);
+  let tp = toCanvas(targetWX, targetWY);
+
+  if (Math.hypot(p.cx - tp.cx, p.cy - tp.cy) < targetR + 7) {
+    hits++;
+    updateScore();
+    document.getElementById('msg').style.color = '#1a7a1a';
+    document.getElementById('msg').textContent = '🎯 Colpito! Bravissimo!';
+    hitEffectX = tp.cx; hitEffectY = tp.cy; hitEffect = 0;
+    cancelAnimationFrame(animId);
+    let boom = setInterval(() => {
+      hitEffect += 0.07;
+      draw(null, null, true);
+      if (hitEffect >= 1) { clearInterval(boom); fired = false; newTarget(); draw(null, null, false); }
+    }, 30);
+    return;
+  }
+
+  if (wy < 0 || p.cx > W + 20) {
+    document.getElementById('msg').style.color = '#aa2222';
+    document.getElementById('msg').textContent = '💨 Mancato! Modifica a, b o c.';
+    fired = false;
+    draw(null, null, false);
+    return;
+  }
+
+  draw(animWX, wy, false);
+  animId = requestAnimationFrame(animate);
+}
+
+function updateScore() {
+  document.getElementById('shots').textContent = shots;
+  document.getElementById('hits').textContent = hits;
+  document.getElementById('acc').textContent = shots > 0 ? Math.round(hits / shots * 100) + '%' : '—';
+}
+
+function updateEq() {
+  let as = a.toFixed(2), bs = b.toFixed(1), cs = c.toFixed(1);
+  let bStr = parseFloat(bs) >= 0 ? '+ ' + bs + 'x' : '- ' + Math.abs(parseFloat(bs)).toFixed(1) + 'x';
+  let cStr = parseFloat(cs) >= 0 ? '+ ' + cs : '- ' + Math.abs(parseFloat(cs)).toFixed(1);
+  document.getElementById('equation-bar').textContent = 'y = ' + as + 'x² ' + bStr + ' ' + cStr;
+}
+
+document.getElementById('sa').addEventListener('input', e => {
+  a = parseFloat(e.target.value);
+  document.getElementById('va').textContent = 'a = ' + a.toFixed(2);
+  updateEq(); if (!fired) draw(null, null, false);
+});
+document.getElementById('sb').addEventListener('input', e => {
+  b = parseFloat(e.target.value);
+  document.getElementById('vb').textContent = 'b = ' + b.toFixed(1);
+  updateEq(); if (!fired) draw(null, null, false);
+});
+document.getElementById('sc').addEventListener('input', e => {
+  c = parseFloat(e.target.value);
+  document.getElementById('vc').textContent = 'c = ' + c.toFixed(1);
+  updateEq(); if (!fired) draw(null, null, false);
+});
+
+document.getElementById('fire-btn').addEventListener('click', () => {
+  if (fired) return;
+  fired = true; shots++;
+  updateScore();
+  document.getElementById('msg').textContent = '';
+  animWX = 0;
+  cancelAnimationFrame(animId);
+  animate();
+});
+
+updateEq();
+draw(null, null, false);
+</script>
+</body>
+</html>
