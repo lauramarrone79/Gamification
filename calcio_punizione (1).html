@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Calcio di Punizione — Simulatore Parabolico</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;1,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #1c3a6b;
+    --navy-mid: #1e3a5f;
+    --navy-light: #2d5282;
+    --orange: #f97316;
+    --orange-light: #fed7aa;
+    --green: #16a34a;
+    --green-light: #dcfce7;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --sky: #e0f2fe;
+    --white: #ffffff;
+    --gray: #94a3b8;
+    --text: #1e293b;
+  }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: linear-gradient(135deg, var(--navy) 0%, #0f2547 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    color: var(--white);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 18px;
+  }
+  header h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--white);
+  }
+  header h1 span { color: var(--orange); }
+  header p {
+    font-size: 0.92rem;
+    color: #93c5fd;
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--orange);
+    color: white;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .main-wrap {
+    display: flex;
+    gap: 18px;
+    width: 100%;
+    max-width: 1080px;
+    align-items: flex-start;
+  }
+
+  /* ─── CANVAS ─── */
+  .canvas-wrap {
+    flex: 1;
+    background: #f0f9ff;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.1);
+    position: relative;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Risultato overlay sul canvas */
+  #result-overlay {
+    position: absolute;
+    top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.72);
+    color: white;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    padding: 6px 22px;
+    border-radius: 30px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+  #result-overlay.show { opacity: 1; }
+
+  /* ─── PANNELLO CONTROLLI ─── */
+  .panel {
+    width: 272px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .card-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 12px;
+  }
+
+  /* Sliders */
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 12px;
+  }
+  .slider-row:last-child { margin-bottom: 0; }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .slider-label span:first-child {
+    font-size: 0.88rem;
+    color: #e2e8f0;
+  }
+  .slider-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--orange);
+    min-width: 52px;
+    text-align: right;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.15);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--orange);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(249,115,22,0.5);
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat {
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+  }
+  .stat-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  /* Equazione */
+  .equation-box {
+    background: var(--navy);
+    border: 1.5px solid #3b82f6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .equation-box .eq-label {
+    font-size: 0.72rem;
+    color: #93c5fd;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .equation-box .eq-text {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #93c5fd;
+  }
+  .equation-box .eq-text span { color: #60a5fa; }
+
+  /* Bottone lancia */
+  #fire-btn {
+    width: 100%;
+    padding: 11px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: white;
+    background: linear-gradient(90deg, var(--orange) 0%, #ea580c 100%);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 4px 14px rgba(249,115,22,0.4);
+  }
+  #fire-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(249,115,22,0.5); }
+  #fire-btn:active { transform: translateY(1px); }
+  #fire-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Feedback goal/no-goal */
+  .feedback {
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+  .feedback.goal    { background: var(--green-light); color: #15803d; }
+  .feedback.blocked { background: var(--red-light);   color: #b91c1c; }
+  .feedback.over    { background: #fef9c3;             color: #854d0e; }
+  .feedback.ground  { background: #f1f5f9;             color: #475569; }
+  .feedback.idle    { background: rgba(255,255,255,0.06); color: #94a3b8; }
+
+  /* Footer */
+  footer {
+    margin-top: 16px;
+    font-size: 0.78rem;
+    color: #475569;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">ITC J. Torriani · Cremona · Matematica</div>
+  <h1>Calcio di Punizione <span>&amp;</span> Parabola</h1>
+  <p>Regola velocità, angolo e distanza barriera — la traiettoria è una parabola!</p>
+</header>
+
+<div class="main-wrap">
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
+    <canvas id="c" width="720" height="360"></canvas>
+    <div id="result-overlay"></div>
+  </div>
+
+  <!-- PANNELLO -->
+  <div class="panel">
+
+    <!-- Slider controlli -->
+    <div class="card">
+      <div class="card-title">Parametri del tiro</div>
+
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Velocità iniziale v₀</span>
+          <span class="slider-val" id="vel-v">25 m/s</span>
+        </div>
+        <input type="range" id="vel" min="10" max="40" value="25" step="1">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Angolo di tiro α</span>
+          <span class="slider-val" id="ang-v">20°</span>
+        </div>
+        <input type="range" id="ang" min="5" max="55" value="20" step="1">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Distanza barriera</span>
+          <span class="slider-val" id="bdist-v">9.15 m</span>
+        </div>
+        <input type="range" id="bdist" min="4" max="13" value="9.15" step="0.05">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Altezza barriera</span>
+          <span class="slider-val" id="bh-v">1.80 m</span>
+        </div>
+        <input type="range" id="bh" min="1.0" max="2.5" value="1.8" step="0.05">
+      </div>
+    </div>
+
+    <!-- Equazione -->
+    <div class="card">
+      <div class="card-title">Equazione traiettoria</div>
+      <div class="equation-box">
+        <div class="eq-label">y(x) =</div>
+        <div class="eq-text" id="eq-text">ax² + bx</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Valori chiave</div>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-label">Altezza max</div>
+          <div class="stat-val" id="s-hmax">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Gittata totale</div>
+          <div class="stat-val" id="s-gitt">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Sulla barriera</div>
+          <div class="stat-val" id="s-barr">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Sulla porta (2.44m)</div>
+          <div class="stat-val" id="s-porta">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottone + feedback -->
+    <button id="fire-btn">⚽ Calcia!</button>
+    <div class="feedback idle" id="feedback">Regola i parametri e calcia!</div>
+  </div>
+</div>
+
+<footer>La traiettoria del pallone segue y(x) = ax² + bx  con  a = −g/(2v₀²cos²α),  b = tanα</footer>
+
+<script>
+const g = 9.81;
+const GOAL_X = 16.5;   // distanza porta
+const GOAL_H = 2.44;   // altezza traversa
+const CV_W = 720, CV_H = 360;
+
+// Conversioni mondo→canvas
+// Asse x: 0..20m → 40..680px  → scala 32px/m, offset 40
+// Asse y: 0..8m  → 310..20px  → scala inverted
+const SCALE_X = 31;
+const GROUND_Y = 310;
+const ORIGIN_X = 38;
+const SCALE_Y = 36;
+
+function wx(xm) { return ORIGIN_X + xm * SCALE_X; }
+function wy(ym) { return GROUND_Y - ym * SCALE_Y; }
+
+function traj(v0, alpha_deg, x) {
+  const th = alpha_deg * Math.PI / 180;
+  const vx = v0 * Math.cos(th);
+  const vy = v0 * Math.sin(th);
+  return (vy/vx)*x - (g/(2*vx*vx))*x*x;
+}
+
+function computeA(v0, alpha_deg) {
+  const th = alpha_deg * Math.PI / 180;
+  const vx = v0 * Math.cos(th);
+  return -g / (2 * vx * vx);
+}
+function computeB(v0, alpha_deg) {
+  const th = alpha_deg * Math.PI / 180;
+  return Math.tan(th);
+}
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let animFrame = null;
+let animProgress = 0;
+let isAnimating = false;
+
+function getParams() {
+  return {
+    v0: +document.getElementById('vel').value,
+    ang: +document.getElementById('ang').value,
+    bdist: +document.getElementById('bdist').value,
+    bh: +document.getElementById('bh').value,
+  };
+}
+
+function drawScene(progress = 1) {
+  const { v0, ang, bdist, bh } = getParams();
+  const th = ang * Math.PI / 180;
+  const vx_c = v0 * Math.cos(th);
+  const vy_c = v0 * Math.sin(th);
+  const T = 2 * vy_c / g;
+  const range = vx_c * T;
+  const hmax = (vy_c * vy_c) / (2 * g);
+  const a = computeA(v0, ang);
+  const b = computeB(v0, ang);
+
+  const yBarr = traj(v0, ang, bdist);
+  const yGoal = traj(v0, ang, GOAL_X);
+
+  // ── Background cielo ──
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  skyGrad.addColorStop(0, '#bae6fd');
+  skyGrad.addColorStop(1, '#e0f2fe');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, CV_W, CV_H);
+
+  // ── Erba ──
+  const grassGrad = ctx.createLinearGradient(0, GROUND_Y, 0, CV_H);
+  grassGrad.addColorStop(0, '#4ade80');
+  grassGrad.addColorStop(1, '#16a34a');
+  ctx.fillStyle = grassGrad;
+  ctx.fillRect(0, GROUND_Y, CV_W, CV_H - GROUND_Y);
+
+  // Strisce erba
+  for (let i = 0; i < 10; i++) {
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.06)';
+      ctx.fillRect(ORIGIN_X + i * SCALE_X * 2, GROUND_Y, SCALE_X * 2, CV_H - GROUND_Y);
+    }
+  }
+  // Linea campo
+  ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(CV_W, GROUND_Y); ctx.stroke();
+
+  // ── Scala X (distanze) ──
+  ctx.fillStyle = '#475569'; ctx.font = '10px Source Sans 3, sans-serif'; ctx.textAlign = 'center';
+  for (let xm = 0; xm <= 20; xm += 2) {
+    const px = wx(xm);
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath(); ctx.moveTo(px, GROUND_Y); ctx.lineTo(px, GROUND_Y + 5); ctx.stroke();
+    ctx.fillText(xm + 'm', px, GROUND_Y + 16);
+  }
+
+  // ── PORTA ──
+  const gx = wx(GOAL_X);
+  const gyTop = wy(GOAL_H);
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 3;
+  ctx.strokeRect(gx, gyTop, CV_W - gx - 5, GROUND_Y - gyTop);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(gx - 2, gyTop - 5, CV_W - gx + 2, 5);
+  // Rete
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.8;
+  for (let rx = gx + 15; rx < CV_W - 8; rx += 15) {
+    ctx.beginPath(); ctx.moveTo(rx, gyTop); ctx.lineTo(rx, GROUND_Y); ctx.stroke();
+  }
+  for (let ry = gyTop + 20; ry < GROUND_Y; ry += 20) {
+    ctx.beginPath(); ctx.moveTo(gx, ry); ctx.lineTo(CV_W - 8, ry); ctx.stroke();
+  }
+  // Label porta
+  ctx.fillStyle = '#334155'; ctx.font = 'bold 11px Rajdhani, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('PORTA 2.44m', gx + 2, gyTop - 8);
+
+  // ── BARRIERA ──
+  const bx = wx(bdist);
+  const byTop = wy(bh);
+  // Zone colorate
+  ctx.fillStyle = 'rgba(254,243,199,0.5)';
+  ctx.fillRect(bx - 28, byTop, 60, GROUND_Y - byTop);
+  // Linea altezza barriera
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5; ctx.setLineDash([5,3]);
+  ctx.beginPath(); ctx.moveTo(bx - 40, byTop); ctx.lineTo(bx + 40, byTop); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#b45309'; ctx.font = '10px Source Sans 3'; ctx.textAlign = 'right';
+  ctx.fillText(bh.toFixed(2) + 'm', bx - 38, byTop + 4);
+
+  // Difensori (4 figure)
+  const defXs = [bx - 18, bx - 6, bx + 6, bx + 18];
+  defXs.forEach(dx => {
+    // gambe
+    ctx.strokeStyle = '#1e40af'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(dx - 4, GROUND_Y - 18); ctx.lineTo(dx - 3, GROUND_Y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(dx + 4, GROUND_Y - 18); ctx.lineTo(dx + 3, GROUND_Y); ctx.stroke();
+    // corpo
+    ctx.fillStyle = '#1e40af';
+    ctx.fillRect(dx - 7, GROUND_Y - 42, 14, 22);
+    // testa
+    ctx.fillStyle = '#fde68a';
+    ctx.strokeStyle = '#d97706'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(dx, GROUND_Y - 50, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  });
+  // Label barriera
+  ctx.fillStyle = 'white';
+  ctx.fillStyle = '#1e40af';
+  const lbw = 80;
+  ctx.save();
+  ctx.fillStyle = 'rgba(30,64,175,0.85)'; ctx.strokeStyle='none';
+  roundRect(ctx, bx - lbw/2, GROUND_Y + 5, lbw, 18, 5);
+  ctx.fill();
+  ctx.fillStyle = 'white'; ctx.font = 'bold 10px Rajdhani, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Barriera ' + bdist.toFixed(2) + 'm', bx, GROUND_Y + 17);
+  ctx.restore();
+
+  // ── TRAIETTORIA ──
+  const drawUpTo = progress * GOAL_X;
+  const landed = range < GOAL_X ? progress * range : drawUpTo;
+  const maxX = Math.min(landed, GOAL_X + 0.5, range);
+
+  if (progress > 0) {
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.5; ctx.setLineDash([9,5]);
+    ctx.beginPath();
+    for (let xm = 0; xm <= maxX; xm += 0.1) {
+      const ym = traj(v0, ang, xm);
+      if (ym < 0 && xm > 0.2) break;
+      const px = wx(xm), py = wy(Math.max(ym, 0));
+      if (xm === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── PALLONE in volo ──
+  if (progress > 0 && progress < 1.0) {
+    const ballX = progress * GOAL_X;
+    const ballY = traj(v0, ang, ballX);
+    if (ballY >= 0) {
+      drawBall(wx(ballX), wy(ballY), 9);
+    }
+  }
+
+  // ── PALLONE a terra (inizio) ──
+  drawBall(wx(0), GROUND_Y - 10, 11);
+  // Freccia angolo
+  ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2;
+  const arrLen = 45;
+  const ax2 = wx(0) + arrLen * Math.cos(th);
+  const ay2 = wy(0) - arrLen * Math.sin(th);
+  ctx.beginPath(); ctx.moveTo(wx(0), GROUND_Y - 10); ctx.lineTo(ax2, ay2); ctx.stroke();
+  ctx.fillStyle = '#f97316';
+  arrowHead(ctx, ax2, ay2, th);
+  ctx.fillStyle = '#f97316'; ctx.font = 'bold 11px Rajdhani'; ctx.textAlign = 'left';
+  ctx.fillText('v₀=' + v0 + 'm/s', wx(0) + arrLen * Math.cos(th) + 5, wy(0) - arrLen * Math.sin(th) - 4);
+  // Arco angolo
+  ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(wx(0), GROUND_Y - 10, 22, -th, 0); ctx.stroke();
+  ctx.fillStyle = '#ea580c'; ctx.font = 'bold 11px Source Sans 3'; ctx.textAlign = 'left';
+  ctx.fillText(ang + '°', wx(0) + 25, GROUND_Y - 14);
+
+  // ── Quota max ──
+  if (progress >= 0.5) {
+    const xMax = -b / (2 * a);
+    if (xMax > 0 && xMax < GOAL_X) {
+      ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.2; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(wx(xMax), wy(hmax)); ctx.lineTo(wx(xMax), GROUND_Y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.save();
+      ctx.fillStyle = 'rgba(124,58,237,0.85)';
+      roundRect(ctx, wx(xMax) + 4, wy(hmax) - 14, 65, 14, 4);
+      ctx.fill();
+      ctx.fillStyle = 'white'; ctx.font = 'bold 9px Source Sans 3'; ctx.textAlign = 'left';
+      ctx.fillText('hmax=' + hmax.toFixed(2) + 'm', wx(xMax) + 7, wy(hmax) - 3);
+      ctx.restore();
+    }
+  }
+
+  // ── Aggiorna stats ──
+  document.getElementById('s-hmax').textContent = hmax.toFixed(2) + ' m';
+  document.getElementById('s-gitt').textContent = range.toFixed(1) + ' m';
+  document.getElementById('s-barr').textContent = yBarr > 0 ? yBarr.toFixed(2) + ' m' : '—';
+  document.getElementById('s-porta').textContent = yGoal > 0 ? yGoal.toFixed(2) + ' m' : 'a terra';
+
+  // Equazione
+  const aCoef = a.toFixed(5);
+  const bCoef = b.toFixed(3);
+  document.getElementById('eq-text').innerHTML =
+    `<span>${aCoef}</span> x² + <span>${bCoef}</span> x`;
+}
+
+function drawBall(cx, cy, r) {
+  ctx.save();
+  ctx.fillStyle = 'white';
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // Pentagoni stilizzati
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.arc(cx - r*0.2, cy - r*0.25, r*0.28, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + r*0.35, cy - r*0.1, r*0.22, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx - r*0.1, cy + r*0.38, r*0.2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function arrowHead(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-angle + Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(4, 4);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Animazione ──
+function animate() {
+  animProgress += 0.018;
+  if (animProgress >= 1.0) {
+    animProgress = 1.0;
+    isAnimating = false;
+    document.getElementById('fire-btn').disabled = false;
+    showResult();
+    drawScene(1.0);
+    return;
+  }
+  drawScene(animProgress);
+  animFrame = requestAnimationFrame(animate);
+}
+
+function showResult() {
+  const { v0, ang, bdist, bh } = getParams();
+  const yBarr = traj(v0, ang, bdist);
+  const yGoal = traj(v0, ang, GOAL_X);
+  const th = ang * Math.PI / 180;
+  const vx_c = v0 * Math.cos(th);
+  const vy_c = v0 * Math.sin(th);
+  const range = vx_c * 2 * vy_c / g;
+
+  const ov = document.getElementById('result-overlay');
+  const fb = document.getElementById('feedback');
+  ov.classList.add('show');
+
+  if (range < GOAL_X || yGoal <= 0) {
+    ov.textContent = '❌ Pallone a terra!';
+    ov.style.background = 'rgba(185,28,28,0.85)';
+    fb.className = 'feedback ground';
+    fb.textContent = `Gittata ${range.toFixed(1)}m — non arriva alla porta (16.5m)`;
+  } else if (yBarr < bh) {
+    ov.textContent = '🛡️ Bloccato dalla barriera!';
+    ov.style.background = 'rgba(180,83,9,0.85)';
+    fb.className = 'feedback blocked';
+    fb.textContent = `y(${bdist}m) = ${yBarr.toFixed(2)}m < ${bh}m — barriera invalicata`;
+  } else if (yGoal > GOAL_H) {
+    ov.textContent = '🚀 Sopra la traversa!';
+    ov.style.background = 'rgba(161,98,7,0.85)';
+    fb.className = 'feedback over';
+    fb.textContent = `y(16.5m) = ${yGoal.toFixed(2)}m > 2.44m — fuori!`;
+  } else {
+    ov.textContent = '⚽ GOAL!';
+    ov.style.background = 'rgba(21,128,61,0.9)';
+    fb.className = 'feedback goal';
+    fb.textContent = `y(${bdist}m)=${yBarr.toFixed(2)}m > ${bh}m  ·  y(16.5m)=${yGoal.toFixed(2)}m ∈ (0, 2.44m) ✓`;
+  }
+  setTimeout(() => ov.classList.remove('show'), 3000);
+}
+
+// ── Listeners ──
+['vel','ang','bdist','bh'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    const v = document.getElementById(id).value;
+    const labels = { vel: v+' m/s', ang: v+'°', bdist: (+v).toFixed(2)+' m', bh: (+v).toFixed(2)+' m' };
+    document.getElementById(id+'-v').textContent = labels[id];
+    if (!isAnimating) { animProgress = 0; drawScene(0); }
+    document.getElementById('feedback').className = 'feedback idle';
+    document.getElementById('feedback').textContent = 'Regola i parametri e calcia!';
+  });
+});
+
+document.getElementById('fire-btn').addEventListener('click', () => {
+  if (isAnimating) return;
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animProgress = 0;
+  isAnimating = true;
+  document.getElementById('fire-btn').disabled = true;
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('feedback').className = 'feedback idle';
+  document.getElementById('feedback').textContent = '…in volo…';
+  animate();
+});
+
+// Disegno iniziale
+drawScene(0);
+</script>
+</body>
+</html>
